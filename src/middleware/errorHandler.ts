@@ -36,6 +36,23 @@ export const errorHandler = (
   } else if (err instanceof Error) {
     message = err.message;
     errors = err.message;
+
+    // Some framework/library errors carry their own HTTP status code —
+    // e.g. a malformed JSON request body rejected by express.json().
+    const httpError = err as {
+      status?: unknown;
+      statusCode?: unknown;
+      type?: unknown;
+    };
+    if (typeof httpError.statusCode === 'number') {
+      statusCode = httpError.statusCode;
+    } else if (typeof httpError.status === 'number') {
+      statusCode = httpError.status;
+    }
+    if (httpError.type === 'entity.parse.failed') {
+      message = 'Invalid JSON in request body';
+      errors = 'Invalid JSON in request body';
+    }
   }
 
   // Log full error server-side for debugging (never sent to the client)
