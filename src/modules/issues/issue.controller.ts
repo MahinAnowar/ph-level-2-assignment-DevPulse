@@ -40,3 +40,32 @@ export const getIssueById = catchAsync(async (req: Request, res: Response) => {
     data: issue,
   });
 });
+
+/** PATCH /api/issues/:id — update an issue (permission rules in the service). */
+export const updateIssue = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, 'Authentication required');
+  }
+
+  const issue = await issueService.updateIssue(
+    req.params.id,
+    req.body,
+    req.user,
+  );
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    message: 'Issue updated successfully',
+    data: issue,
+  });
+});
+
+/** DELETE /api/issues/:id — delete an issue (maintainer only). */
+export const deleteIssue = catchAsync(async (req: Request, res: Response) => {
+  await issueService.deleteIssue(req.params.id);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    message: 'Issue deleted successfully',
+  });
+});

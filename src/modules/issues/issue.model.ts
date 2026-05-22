@@ -116,3 +116,49 @@ export const findReporterById = async (
   );
   return result.rows[0] ?? null;
 };
+
+// Fields that may be changed by an update (all optional — PATCH semantics).
+export interface IssueUpdateFields {
+  title?: string;
+  description?: string;
+  type?: IssueType;
+  status?: IssueStatus;
+}
+
+/**
+ * Updates only the provided fields of an issue and returns the updated row.
+ * The SET clause is built dynamically; column names come from a fixed
+ * whitelist (set in the service) and all values are parameterized,
+ * so this is safe from SQL injection.
+ */
+export const updateIssueById = async (
+  id: number,
+  fields: IssueUpdateFields,
+): Promise<IssueRecord> => {
+  const setClauses: string[] = [];
+  const values: (string | number)[] = [];
+
+  for (const [column, value] of Object.entries(fields)) {
+    if (value !== undefined) {
+      values.push(value);
+      setClauses.push(`${column} = $${values.length}`);
+    }
+  }
+
+  // The id goes last and is referenced by the WHERE clause.
+  values.push(id);
+
+  const result = await pool.query<IssueRecord>(
+    `UPDATE issues SET ${setClauses.join(', ')}
+     WHERE id = $${values.length}
+     RETURNING *`,
+    values,
+  );
+  return result.rows[0];
+};
+
+/** Deletes an issue by id. Returns true if a row was actually removed. */
+export const deleteIssueById = async (id: number): Promise<boolean> => {
+  const result = await pool.query('DELETE FROM issues WHERE id = $1', [id]);
+  return (result.rowCount ?? 0) > 0;
+};

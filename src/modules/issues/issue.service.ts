@@ -1,15 +1,19 @@
 import { StatusCodes } from 'http-status-codes';
 import { AppError } from '../../utils/AppError';
 import { isNonEmptyString } from '../../utils/validators';
+import { AuthPayload } from '../../utils/jwt';
 import { IssueType, IssueStatus } from '../../types';
 import {
   IssueRecord,
   ReporterInfo,
+  IssueUpdateFields,
   insertIssue,
   findAllIssues,
   findIssueById,
   findReportersByIds,
   findReporterById,
+  updateIssueById,
+  deleteIssueById,
 } from './issue.model';
 
 // An issue with the reporter expanded into an object (replaces reporter_id).
@@ -173,4 +177,130 @@ export const getIssueById = async (
 
   const reporter = await findReporterById(issue.reporter_id);
   return toIssueWithReporter(issue, reporter);
+};
+
+/**
+ * Updates an issue's title/description/type (and status, for maintainers).
+ *
+ * Permission rules:
+ *  - maintainer  -> may update any issue
+ *  - contributor -> may update only their OWN issue, and only while it is `open`
+ */
+export const updateIssue = async (
+  idParam: string,
+  body: Record<string, unknown>,
+  user: AuthPayload,
+): Promise<IssueRecord> => {
+  const id = parseIssueId(idParam);
+
+  const issue = await findIssueById(id);
+  if (!issue) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Issue not found');
+  }
+
+  // ----- Permission check -----
+  const isMaintainer = user.role === 'maintainer';
+  if (!isMaintainer) {
+    if (issue.reporter_id !== user.id) {
+      throw new AppError(
+        StatusCodes.FORBIDDEN,
+        'You can only update issues you reported',
+      );
+    }
+    if (issue.status !== 'open') {
+      throw new AppError(
+        StatusCodes.CONFLICT,
+        'You can only update an issue while its status is open',
+      );
+    }
+  }
+
+  // ----- Validate and collect the fields being changed -----
+  const { title, description, type, status } = body;
+  const fields: IssueUpdateFields = {};
+
+  if (title !== undefined) {
+    if (!isNonEmptyString(title)) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        'Title must be a non-empty string',
+      );
+    }
+    if (title.trim().length > TITLE_MAX_LENGTH) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        `Title must not exceed ${TITLE_MAX_LENGTH} characters`,
+      );
+    }
+    fields.title = title.trim();
+  }
+
+  if (description !== undefined) {
+    if (!isNonEmptyString(description)) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        'Description must be a non-empty string',
+      );
+    }
+    if (description.trim().length < DESCRIPTION_MIN_LENGTH) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        `Description must be at least ${DESCRIPTION_MIN_LENGTH} characters`,
+      );
+    }
+    fields.description = description.trim();
+  }
+
+  if (type !== undefined) {
+    if (type !== 'bug' && type !== 'feature_request') {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        "Type must be either 'bug' or 'feature_request'",
+      );
+    }
+    fields.type = type;
+  }
+
+  if (status !== undefined) {
+    // Only maintainers may change the workflow status.
+    if (!isMaintainer) {
+      throw new AppError(
+        StatusCodes.FORBIDDEN,
+        'Only a maintainer can change an issue status',
+      );
+    }
+    if (
+      status !== 'open' &&
+      status !== 'in_progress' &&
+      status !== 'resolved'
+    ) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        "status must be one of 'open', 'in_progress', or 'resolved'",
+      );
+    }
+    fields.status = status;
+  }
+
+  if (Object.keys(fields).length === 0) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'Provide at least one field to update (title, description, type)',
+    );
+  }
+
+  return updateIssueById(id, fields);
+};
+
+/**
+ * Permanently deletes an issue. Route-level middleware already restricts
+ * this to maintainers; here we only translate a missing issue into a 404.
+ */
+export const deleteIssue = async (idParam: string): Promise<void> => {
+  const id = parseIssueId(idParam);
+
+  const wasDeleted = await deleteIssueById(id);
+  if (!wasDeleted) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Issue not found');
+  }
 };
