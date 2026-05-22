@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler';
+import authRoutes from './modules/auth/auth.routes';
 
 const app: Application = express();
 
@@ -16,7 +17,8 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// ----- API routes (mounted in later commits) -----
+// ----- API routes -----
+app.use('/api/auth', authRoutes);
 
 // ----- 404 handler for unknown routes (must come after all routes) -----
 app.use(notFoundHandler);
