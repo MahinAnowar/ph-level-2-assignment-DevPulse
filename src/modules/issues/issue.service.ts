@@ -7,7 +7,9 @@ import {
   ReporterInfo,
   insertIssue,
   findAllIssues,
+  findIssueById,
   findReportersByIds,
+  findReporterById,
 } from './issue.model';
 
 // An issue with the reporter expanded into an object (replaces reporter_id).
@@ -24,6 +26,33 @@ export interface IssueWithReporter {
 
 const TITLE_MAX_LENGTH = 150;
 const DESCRIPTION_MIN_LENGTH = 20;
+
+/**
+ * Shapes a raw DB issue row + its reporter into the API response object.
+ * Centralizing this keeps every issue response identical (DRY).
+ */
+const toIssueWithReporter = (
+  issue: IssueRecord,
+  reporter: ReporterInfo | null,
+): IssueWithReporter => ({
+  id: issue.id,
+  title: issue.title,
+  description: issue.description,
+  type: issue.type,
+  status: issue.status,
+  reporter,
+  created_at: issue.created_at,
+  updated_at: issue.updated_at,
+});
+
+/** Parses and validates a route `:id` param into a positive integer. */
+const parseIssueId = (idParam: string): number => {
+  const id = Number(idParam);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Invalid issue ID');
+  }
+  return id;
+};
 
 /**
  * Validates issue input and creates a new issue.
@@ -123,15 +152,25 @@ export const getAllIssues = async (
   const reporterMap = new Map(reporters.map((r) => [r.id, r]));
 
   // ----- Replace reporter_id with the full reporter object -----
-  // Fields are listed explicitly to match the spec's response shape.
-  return issues.map((issue) => ({
-    id: issue.id,
-    title: issue.title,
-    description: issue.description,
-    type: issue.type,
-    status: issue.status,
-    reporter: reporterMap.get(issue.reporter_id) ?? null,
-    created_at: issue.created_at,
-    updated_at: issue.updated_at,
-  }));
+  return issues.map((issue) =>
+    toIssueWithReporter(issue, reporterMap.get(issue.reporter_id) ?? null),
+  );
+};
+
+/**
+ * Returns a single issue (with its reporter) by id.
+ * Throws 400 for an invalid id and 404 when the issue does not exist.
+ */
+export const getIssueById = async (
+  idParam: string,
+): Promise<IssueWithReporter> => {
+  const id = parseIssueId(idParam);
+
+  const issue = await findIssueById(id);
+  if (!issue) {
+    throw new AppError(StatusCodes.NOT_FOUND, 'Issue not found');
+  }
+
+  const reporter = await findReporterById(issue.reporter_id);
+  return toIssueWithReporter(issue, reporter);
 };

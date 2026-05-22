@@ -30,3 +30,13 @@ export const getAllIssues = catchAsync(async (req: Request, res: Response) => {
     data: issues,
   });
 });
+
+/** GET /api/issues/:id — fetch a single issue by id (public). */
+export const getIssueById = catchAsync(async (req: Request, res: Response) => {
+  const issue = await issueService.getIssueById(req.params.id);
+
+  sendResponse(res, {
+    statusCode: StatusCodes.OK,
+    data: issue,
+  });
+});

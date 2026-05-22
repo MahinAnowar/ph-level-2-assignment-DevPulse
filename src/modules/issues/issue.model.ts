@@ -94,3 +94,25 @@ export const findReportersByIds = async (
   );
   return result.rows;
 };
+
+/** Finds a single issue by id, or returns null if none exists. */
+export const findIssueById = async (
+  id: number,
+): Promise<IssueRecord | null> => {
+  const result = await pool.query<IssueRecord>(
+    'SELECT * FROM issues WHERE id = $1',
+    [id],
+  );
+  return result.rows[0] ?? null;
+};
+
+/** Finds a single reporter (user) by id, or returns null. */
+export const findReporterById = async (
+  id: number,
+): Promise<ReporterInfo | null> => {
+  const result = await pool.query<ReporterInfo>(
+    'SELECT id, name, role FROM users WHERE id = $1',
+    [id],
+  );
+  return result.rows[0] ?? null;
+};
