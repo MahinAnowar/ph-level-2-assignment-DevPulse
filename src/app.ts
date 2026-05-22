@@ -1,5 +1,6 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 
 const app: Application = express();
 
@@ -14,5 +15,13 @@ app.get('/', (_req: Request, res: Response) => {
     message: 'DevPulse API is running 🚀',
   });
 });
+
+// ----- API routes (mounted in later commits) -----
+
+// ----- 404 handler for unknown routes (must come after all routes) -----
+app.use(notFoundHandler);
+
+// ----- Centralized error handler (must be the very last middleware) -----
+app.use(errorHandler);
 
 export default app;
