@@ -6,9 +6,7 @@
 
 ## 🔗 Live URL
 
-**Base URL:** `https://YOUR-APP.vercel.app`
-
-> ⚠️ Replace the URL above with your real Vercel deployment URL after deploying.
+**Base URL:** `https://ph-level-2-assignment-dev-pulse.vercel.app/`
 
 ---
 
